@@ -2,7 +2,9 @@
 
 Currently developing a Z80 emulator. Eventual plan is to make a fantasy PC with virtual chips and peripherals, and expand the Z80 instruction set to support a memory mapper and privilege levels.
 
-The core is targetting GCC.
+The core is targetting GCC on Windows and Linux.
+
+To compile and run Z80 core tests, run `run_test.ps1` or `run_test.sh`.
 
 ## Roadmap
 

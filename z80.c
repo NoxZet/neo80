@@ -36,7 +36,7 @@ void initializeCore() {
     }
 }
 
-void add(uint8_t operand, uint8_t carry = 0) {
+inline static void addOptions(uint8_t operand, uint8_t carry) {
     const uint16_t sum16 = (uint16_t)REG_A + operand + carry;
     const uint8_t sum8 = (uint8_t)sum16;
     REG_F = (
@@ -50,24 +50,38 @@ void add(uint8_t operand, uint8_t carry = 0) {
     REG_A = sum8;
 }
 
-inline static void subOptions(uint8_t operand, bool saveResult) {
-    uint8_t dif = REG_A - operand;
+void add(uint8_t operand) {
+    addOptions(operand, 0);
+}
+
+void addC(uint8_t operand, uint8_t carry) {
+    addOptions(operand, carry);
+}
+
+inline static void subOptions(uint8_t operand, uint8_t carry, bool saveResult) {
+    uint8_t dif = REG_A - operand - carry;
     REG_F = (
-        (operand > REG_A ? FMASK_CARRY : 0)
+        ((uint16_t)operand + carry > REG_A ? FMASK_CARRY : 0)
         | FMASK_SUB
         | ((REG_A & 0x80) != (operand & 0x80) && (dif & 0x80) != (REG_A & 0x80) ? FMASK_PARITY : 0)
-        | ((operand & 0xf) > (REG_A & 0xf) ? FMASK_HALFCARRY : 0)
+        | (((operand & 0xf) + carry) > (REG_A & 0xf) ? FMASK_HALFCARRY : 0)
         | (dif == 0 ? FMASK_ZERO : 0)
         | (dif & 0x80 ? FMASK_SIGN : 0)
     );
     if (saveResult)
         REG_A = dif;
 }
+
 void sub(uint8_t operand) {
-    return subOptions(operand, true);
+    subOptions(operand, 0, true);
 }
+
+void subC(uint8_t operand, uint8_t carry) {
+    subOptions(operand, carry, true);
+}
+
 void cp(uint8_t operand) {
-    return subOptions(operand, false);
+    subOptions(operand, 0, false);
 }
 
 void inc(uint8_t* ptr) {
@@ -388,17 +402,17 @@ int tick() {
 
         // **** 8 BIT ARITHMETIC ****
         // ADD A,r;   ADD A,(HL)
-        case 0x80: add(REG_B); pc++; return 1; case 0x81: add(REG_C); pc++; return 1;
-        case 0x82: add(REG_D); pc++; return 1; case 0x83: add(REG_E); pc++; return 1;
-        case 0x84: add(*(lPtr + 1)); pc++; return 1; case 0x85: add(*lPtr); pc++; return 1;
+        case 0x80: add(REG_B); pc++; return 1;          case 0x81: add(REG_C); pc++; return 1;
+        case 0x82: add(REG_D); pc++; return 1;          case 0x83: add(REG_E); pc++; return 1;
+        case 0x84: add(*(lPtr + 1)); pc++; return 1;    case 0x85: add(*lPtr); pc++; return 1;
         case 0x86: add(memory[hlIndex]); pc += 1+indirectPC; return 2;
         case 0x87: add(REG_A); pc++; return 1;
         // ADC A,r;   ADC A,(HL)
-        case 0x88: add(REG_B, REG_F & FMASK_CARRY); pc++; return 1; case 0x89: add(REG_C + (REG_F & FMASK_CARRY)); pc++; return 1;
-        case 0x8a: add(REG_D, REG_F & FMASK_CARRY); pc++; return 1; case 0x8b: add(REG_E + (REG_F & FMASK_CARRY)); pc++; return 1;
-        case 0x8c: add(*(lPtr + 1), REG_F & FMASK_CARRY); pc++; return 1; case 0x8d: add(*lPtr + (REG_F & FMASK_CARRY)); pc++; return 1;
-        case 0x8e: add(memory[hlIndex], REG_F & FMASK_CARRY); pc += 1+indirectPC; return 2;
-        case 0x8f: add(REG_A, REG_F & FMASK_CARRY); pc++; return 1;
+        case 0x88: addC(REG_B, REG_F & FMASK_CARRY); pc++; return 1;        case 0x89: addC(REG_C, (REG_F & FMASK_CARRY)); pc++; return 1;
+        case 0x8a: addC(REG_D, REG_F & FMASK_CARRY); pc++; return 1;        case 0x8b: addC(REG_E, (REG_F & FMASK_CARRY)); pc++; return 1;
+        case 0x8c: addC(*(lPtr + 1), REG_F & FMASK_CARRY); pc++; return 1;  case 0x8d: addC(*lPtr, (REG_F & FMASK_CARRY)); pc++; return 1;
+        case 0x8e: addC(memory[hlIndex], REG_F & FMASK_CARRY); pc += 1+indirectPC; return 2;
+        case 0x8f: addC(REG_A, REG_F & FMASK_CARRY); pc++; return 1;
         // SUB A,r;   SUB A,(HL)
         case 0x90: sub(REG_B); pc++; return 1; case 0x91: sub(REG_C); pc++; return 1;
         case 0x92: sub(REG_D); pc++; return 1; case 0x93: sub(REG_E); pc++; return 1;
@@ -406,11 +420,11 @@ int tick() {
         case 0x96: sub(memory[hlIndex]); pc += 1+indirectPC; return 2;
         case 0x97: sub(REG_A); pc++; return 1;
         // SBC A,r;   SBC A,(HL)
-        case 0x98: sub(REG_B + (REG_F & FMASK_CARRY)); pc++; return 1; case 0x99: sub(REG_C + (REG_F & FMASK_CARRY)); pc++; return 1;
-        case 0x9a: sub(REG_D + (REG_F & FMASK_CARRY)); pc++; return 1; case 0x9b: sub(REG_E + (REG_F & FMASK_CARRY)); pc++; return 1;
-        case 0x9c: sub(*(lPtr + 1) + (REG_F & FMASK_CARRY)); pc++; return 1; case 0x9d: sub(*lPtr + (REG_F & FMASK_CARRY)); pc++; return 1;
-        case 0x9e: sub(memory[hlIndex] + (REG_F & FMASK_CARRY)); pc += 1+indirectPC; return 2;
-        case 0x9f: sub(REG_A + (REG_F & FMASK_CARRY)); pc++; return 1;
+        case 0x98: subC(REG_B, REG_F & FMASK_CARRY); pc++; return 1;            case 0x99: subC(REG_C, REG_F & FMASK_CARRY); pc++; return 1;
+        case 0x9a: subC(REG_D, REG_F & FMASK_CARRY); pc++; return 1;            case 0x9b: subC(REG_E, REG_F & FMASK_CARRY); pc++; return 1;
+        case 0x9c: subC(*(lPtr + 1), REG_F & FMASK_CARRY); pc++; return 1;      case 0x9d: subC(*lPtr, REG_F & FMASK_CARRY); pc++; return 1;
+        case 0x9e: subC(memory[hlIndex], REG_F & FMASK_CARRY); pc += 1+indirectPC; return 2;
+        case 0x9f: subC(REG_A, REG_F & FMASK_CARRY); pc++; return 1;
         // AND A,r;   AND A,(HL)
         case 0xa0: and(REG_B); pc++; return 1; case 0xa1: and(REG_C); pc++; return 1;
         case 0xa2: and(REG_D); pc++; return 1; case 0xa3: and(REG_E); pc++; return 1;
@@ -438,7 +452,7 @@ int tick() {
         // ADD A,n
         case 0xc6: add(opcode2); pc += 2; return 2;
         // ADC A,n
-        case 0xce: add(opcode2 + (REG_F & FMASK_CARRY)); pc += 2; return 2;
+        case 0xce: addC(opcode2, (REG_F & FMASK_CARRY)); pc += 2; return 2;
         // SUB A,n
         case 0xd6: sub(opcode2); pc += 2; return 2;
         // SBC A,n

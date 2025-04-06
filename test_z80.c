@@ -278,16 +278,22 @@ int main() {
     assert(REG_F == 0b00000000, "ADD A,D fe+1 ------ F: "BINARY_PATTERN"\n", BINARY_BYTE(REG_F));
 
     // ADD A,E 7e+2
-    REG_A = 0x7e; REG_E = 0x2; REG_F = 0;
+    REG_A = 0x7e; REG_E = 0x2; REG_F = 0xff;
     resetInstructions(0x83); tick();
-    assert(REG_A == 0x80, "ADD A,E fe+2 ------ A: %x\n", REG_A);
-    assert(REG_F == 0b10010100, "ADD A,E fe+2 ------ F: "BINARY_PATTERN"\n", BINARY_BYTE(REG_F));
+    assert(REG_A == 0x80, "ADD A,E 7e+2 ------ A: %x\n", REG_A);
+    assert(REG_F == 0b10010100, "ADD A,E 7e+2 ------ F: "BINARY_PATTERN"\n", BINARY_BYTE(REG_F));
 
-    // ADC A,H 30+cf
-    REG_A = 0x30; REG_E = 0xcf; REG_F = 0;
-    resetInstructions(0x83); tick();
-    assert(REG_A == 0x80, "ADD A,E fe+2 ------ A: %x\n", REG_A);
-    assert(REG_F == 0b10010100, "ADD A,E fe+2 ------ F: "BINARY_PATTERN"\n", BINARY_BYTE(REG_F));
+    // ADC A,H 30+cf, no carry
+    REG_A = 0x30; REG_H = 0xcf; REG_F = 0;
+    resetInstructions(0x8c); tick();
+    assert(REG_A == 0xff, "ADC A,H 30+cf ------ A: %x\n", REG_A);
+    assert(REG_F == 0b10000000, "ADC A,H 30+cf ------ F: "BINARY_PATTERN"\n", BINARY_BYTE(REG_F));
+
+    // ADC A,L 30+cf, with carry
+    REG_A = 0x30; REG_H = 0; REG_L = 0xcf; REG_F = FMASK_CARRY;
+    resetInstructions(0x8d); tick();
+    assert(REG_A == 0x00, "ADC A,L 30+cf w carry ------ A: %x\n", REG_A);
+    assert(REG_F == 0b01010001, "ADC A,L 30+cf w carry ------ F: "BINARY_PATTERN"\n", BINARY_BYTE(REG_F));
 
     free(memory);
     printf("\033[47mAll tests passed!\033[0m\n");
